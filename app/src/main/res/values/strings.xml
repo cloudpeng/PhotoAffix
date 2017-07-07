@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">PhotoAffix</string>
+    <string name="affix_zero">Affix (0)</string>
+    <string name="no_photos_found">No local photos were found!</string>
+    <string name="stack_horizontally">Stack horizontally</string>
+    <string name="background_fill_color">Background fill</string>
+    <string name="remove">Remove</string>
+    <string name="scale_priority_on">Scale smaller images to largest</string>
+    <string name="image_spacing_x">Image spacing (%1$d, %2$d)</string>
+</resources>
