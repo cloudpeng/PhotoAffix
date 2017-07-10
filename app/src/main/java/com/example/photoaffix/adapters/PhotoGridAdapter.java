@@ -1,16 +1,24 @@
 package com.example.photoaffix.adapters;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import com.afollestad.dragselectrecyclerview.DragSelectRecyclerViewAdapter;
+import com.bumptech.glide.Glide;
 import com.example.photoaffix.R;
 import com.example.photoaffix.data.Photo;
 import com.example.photoaffix.data.PhotoHolder;
+import com.example.photoaffix.ui.MainActivity;
+
+import butterknife.BindView;
+import butterknife.ButterKnife;
 
 /**
  * Created by zengzhi on 2017/7/7.
@@ -18,11 +26,11 @@ import com.example.photoaffix.data.PhotoHolder;
 
 public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAdapter.PhotoViewHolder>{
 
-    private Context mContext;
+    private final MainActivity mContext;
 
     private Photo[] photos;
 
-    public PhotoGridAdapter(Context context) {
+    public PhotoGridAdapter(MainActivity context) {
 
         this.mContext = context;
     }
@@ -56,6 +64,17 @@ public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAda
         notifyDataSetChanged();
     }
 
+    public void shiftSelections() {
+        for (int i = 1; i < getItemCount() - 1; i++) {
+            boolean currentSelected = isIndexSelected(i);
+            if (currentSelected) {
+                setSelected(i + 1, true);
+                setSelected(i, false);
+                i++;
+            }
+        }
+    }
+
     @Override
     public PhotoViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
 
@@ -66,8 +85,32 @@ public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAda
     }
 
     @Override
+    protected boolean isIndexSelectable(int index) {
+        return index > 0;
+    }
+
+    @Override
     public void onBindViewHolder(PhotoViewHolder holder, int position) {
         super.onBindViewHolder(holder, position);
+
+        if (mContext == null || mContext.isFinishing()) {
+            return;
+        }
+        if (position == 0) {
+            return;
+        }
+
+        Glide.with(mContext).load(photos[position - 1].getUri()).into(holder.image);
+
+        if (isIndexSelected(position)) {
+            holder.check.setVisibility(View.VISIBLE);
+            holder.circle.setActivated(true);
+            holder.image.setActivated(true);
+        } else {
+            holder.check.setVisibility(View.GONE);
+            holder.circle.setActivated(false);
+            holder.image.setActivated(false);
+        }
     }
 
     @Override
@@ -77,14 +120,49 @@ public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAda
 
     @Override
     public int getItemCount() {
-        return 0;
+        return photos != null ? photos.length + 1 : 0;
     }
 
-    public class PhotoViewHolder extends RecyclerView.ViewHolder {
+
+
+     class PhotoViewHolder extends RecyclerView.ViewHolder {
+
+        @Nullable
+        @BindView(R.id.image)
+         ImageView image;
+
+        @Nullable
+        @BindView(R.id.check)
+        View check;
+
+        @Nullable
+        @BindView(R.id.circle)
+        View circle;
 
 
         public PhotoViewHolder(View itemView) {
             super(itemView);
+            ButterKnife.bind(this, itemView);
+
+            itemView.setOnClickListener(
+                    v -> {
+                        if (getAdapterPosition() == 0) {
+                            mContext.browseExternalPhotos();
+                            return;
+                        }
+                        toggleSelected(getAdapterPosition());
+                    });
+
+            if (image != null) {
+                itemView.setOnLongClickListener(
+                        v -> {
+                            toggleSelected(getAdapterPosition());
+                            mContext.list.setDragSelectActive(true, getAdapterPosition());
+                            return false;
+                        });
+            }
+
+
         }
     }
 }

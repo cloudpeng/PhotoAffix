@@ -13,6 +13,12 @@
         android:background="@android:color/black"
         tools:ignore="UselessParent">
 
+        <com.example.photoaffix.views.SquareImageView
+            android:id="@+id/image"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:background="#80000000" />
+
         <FrameLayout
             android:layout_width="32dp"
             android:layout_height="32dp"
@@ -36,12 +42,6 @@
                 tools:visibility="visible" />
 
         </FrameLayout>
-
-        <com.example.photoaffix.views.SquareImageView
-            android:id="@+id/image"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            tools:background="#80000000" />
 
     </FrameLayout>
 
