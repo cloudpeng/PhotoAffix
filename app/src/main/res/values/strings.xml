@@ -7,4 +7,12 @@
     <string name="remove">Remove</string>
     <string name="scale_priority_on">Scale smaller images to largest</string>
     <string name="image_spacing_x">Image spacing (%1$d, %2$d)</string>
+    <string name="stack_vertically">Stack vertically</string>
+    <string name="background_fill_color_title">Background Fill Color</string>
+    <string name="done">Done</string>
+    <string name="back">Back</string>
+    <string name="background_fill_color_transparen">Background fill (transparent)</string>
+    <string name="horizontal">Horizontal</string>
+    <string name="vertical">Vertical</string>
+    <string name="image_spacing">Image Spacing</string>
 </resources>

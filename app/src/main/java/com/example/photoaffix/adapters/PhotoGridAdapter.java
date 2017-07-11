@@ -66,6 +66,7 @@ public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAda
 
     public void shiftSelections() {
         for (int i = 1; i < getItemCount() - 1; i++) {
+            //isIndexSelected(i)判断已选择列表中是否已经有了
             boolean currentSelected = isIndexSelected(i);
             if (currentSelected) {
                 setSelected(i + 1, true);
