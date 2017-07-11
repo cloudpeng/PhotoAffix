@@ -69,7 +69,7 @@ public class ImageSpacingDialog extends DialogFragment {
                 .onNegative((materialDialog, dialogAction) -> MainActivity.dismissDialog(materialDialog))
                 .build();
 
-        final View v = dialog.getContentView();
+        final View v = dialog.getCustomView();
         assert v != null;
         unbinder = ButterKnife.bind(this, v);
 
