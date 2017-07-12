@@ -5,11 +5,15 @@ import android.animation.ValueAnimator;
 import android.app.Dialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Looper;
+import android.os.PersistableBundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.Size;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.animation.FastOutSlowInInterpolator;
@@ -19,14 +23,17 @@ import android.support.v7.widget.DefaultItemAnimator;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.afollestad.dragselectrecyclerview.DragSelectRecyclerView;
+import com.afollestad.dragselectrecyclerview.DragSelectRecyclerViewAdapter;
 import com.afollestad.inquiry.Inquiry;
 import com.afollestad.materialdialogs.color.ColorChooserDialog;
 import com.example.photoaffix.R;
@@ -34,21 +41,29 @@ import com.example.photoaffix.adapters.PhotoGridAdapter;
 import com.example.photoaffix.animation.HeightEvaluator;
 import com.example.photoaffix.animation.ViewHideAnimationListener;
 import com.example.photoaffix.data.Photo;
+import com.example.photoaffix.dialogs.AboutDialog;
 import com.example.photoaffix.dialogs.ImageSizingDialog;
 import com.example.photoaffix.dialogs.ImageSpacingDialog;
 import com.example.photoaffix.utils.Prefs;
+import com.example.photoaffix.utils.Util;
 import com.example.photoaffix.views.ColorCircleView;
+
+import java.io.InputStream;
+import java.util.ArrayList;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import butterknife.Unbinder;
 
+import static android.R.attr.process;
+import static android.R.attr.slideEdge;
 import static android.icu.lang.UCharacter.GraphemeClusterBreak.T;
 
 public class MainActivity extends AppCompatActivity implements
         ColorChooserDialog.ColorCallback,
-        ImageSpacingDialog.SpacingCallback{
+        ImageSpacingDialog.SpacingCallback,
+        DragSelectRecyclerViewAdapter.SelectionListener {
 
     private static final int PERMISSION_RC = 69;
     private static final int BROWSE_RC = 21;
@@ -129,9 +144,36 @@ public class MainActivity extends AppCompatActivity implements
         //获取Inquiry单例
         Inquiry.newInstance(this, null).build();
 
+        toolbar.inflateMenu(R.menu.menu_main);
+        toolbar.setOnMenuItemClickListener(new Toolbar.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                switch (item.getItemId()) {
+
+                    case R.id.clear:
+
+                        clearSelection();
+                        return true;
+
+                    case R.id.about:
+                        AboutDialog.shwo(MainActivity.this);
+
+                        return true;
+
+                    default:
+                        return false;
+                }
+
+            }
+        });
+
         list.setLayoutManager(new GridLayoutManager(this, getResources().getInteger(R.integer.grid_width)));
 
         adapter = new PhotoGridAdapter(this);
+        adapter.restoreInstanceState(savedInstanceState);
+
+        //设置监听
+        adapter.setSelectionListener(this);
         list.setAdapter(adapter);
         list.setItemAnimator(new DefaultItemAnimator());
 
@@ -144,6 +186,11 @@ public class MainActivity extends AppCompatActivity implements
         final boolean stackHorizontally = Prefs.stackHorizontally(this);
         stackHorizontallyCheck.setChecked(stackHorizontally);
         stackHorizontallyLabel.setText(stackHorizontally ? R.string.stack_horizontally : R.string.stack_vertically);
+
+        //设置scale
+        final boolean scalePriority = Prefs.scalePriority(this);
+        scalePrioritySwitch.setChecked(scalePriority);
+        scalePriorityLabel.setText(scalePriority ? R.string.scale_priority_on : R.string.scale_priority_off);
         //设置背景填充颜色
         final int bgFillColor = Prefs.bgFillColor(this);
         bgFillColorCircle.setColor(bgFillColor);
@@ -160,11 +207,52 @@ public class MainActivity extends AppCompatActivity implements
         } else {
             bgFillColorLabel.setText(R.string.background_fill_color_transparen);
         }
-        //设置scale
 
 
+        processIntent(getIntent());
 
     }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        processIntent(intent);
+    }
+
+    private void processIntent(Intent intent) {
+        if (intent != null && Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction())) {
+
+            ArrayList<Uri> uris = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (uris != null && uris.size() > 0) {
+
+                selectedPhotos = new Photo[uris.size()];
+                for (int i = 0; i < uris.size(); i++) selectedPhotos[i] = new Photo(uris.get(i));
+
+                beginProcessing();
+
+            } else {
+
+                Toast.makeText(this, R.string.need_two_or_more, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        unbinder.unbind();
+        unbinder = null;
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
+        super.onSaveInstanceState(outState, outPersistentState);
+
+        if (adapter != null) adapter.saveInstanceState(outState);
+    }
+
+
     //获取图库的照片，给adapter显示
     //noinspection VisibleForTests
 
@@ -230,6 +318,30 @@ public class MainActivity extends AppCompatActivity implements
         refresh();
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        //判断活动是否被销毁
+        if (isFinishing()) Inquiry.destroy(this);
+    }
+
+
+    /**
+     * 清楚已选择的照片
+     */
+    public void clearSelection() {
+
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+
+            runOnUiThread(this::clearSelection);
+            return;
+        }
+        selectedPhotos = null;
+        adapter.clearSelected();
+        toolbar.getMenu().findItem(R.id.clear).setVisible(false);
+    }
+
     @OnClick(R.id.removeBgButton)
     public void onClickRemoveBgFill() {
         removeBgFillBtn.setVisibility(View.GONE);
@@ -275,6 +387,68 @@ public class MainActivity extends AppCompatActivity implements
         settingsFrameAnimator.start();
     }
 
+
+    private void beginProcessing() {
+
+        affixButton.setEnabled(false);
+        try {
+            startProcessing();
+        } catch (OutOfMemoryError e) {
+            Util.showMemoryError(MainActivity.this);
+        }
+
+        affixButton.setEnabled(true);
+    }
+
+    private void startProcessing() {
+
+        Util.lockOrientation(this);
+        //获取要设置的宽高
+        final int[] imageSpacing = Prefs.imageSpacing(MainActivity.this);
+        final int SPACING_HORIZONTAL = imageSpacing[0];
+        final int SPACING_VERTICAL = imageSpacing[1];
+        //水平还是垂直
+        final boolean horizontal = stackHorizontallyCheck.isChecked();
+
+        int resultWidth;
+        int resultHeight;
+
+        if (horizontal) {
+
+            int maxHeight = -1;
+            int minHeight = -1;
+            traverseIndex = -1;
+
+            int[] size;
+            //还有下一张图片
+            while ((size = getNextBitmapSize()) != null) {
+                if (size[0] == 0 && size[1] == 0) return;
+
+                if (maxHeight == -1 ) maxHeight = size[1];
+                else if (size[1] > maxHeight) maxHeight = size[1];
+                if (minHeight == -1) minHeight = size[1];
+                else if (size[1] > minHeight) minHeight = size[1];
+            }
+        }
+
+
+        Toast.makeText(this, "hahahaha", Toast.LENGTH_SHORT).show();
+    }
+
+    //点击处理选择的图片
+    @OnClick(R.id.affixButton)
+    public void onClickAffixButton(View v) {
+
+        //获取选择的图片的数组
+        selectedPhotos = adapter.getSelectedPhotos();
+
+        Toast.makeText(this, "" + selectedPhotos.length, Toast.LENGTH_SHORT).show();
+
+        beginProcessing();
+
+
+    }
+
     @OnClick({
             R.id.settingStackHorizontally,
             R.id.settingBgFillColor,
@@ -309,14 +483,20 @@ public class MainActivity extends AppCompatActivity implements
 
             case R.id.settingScalePriority:
 
+                scalePrioritySwitch.setChecked(!scalePrioritySwitch.isChecked());
+
+                scalePriorityLabel.setText(scalePrioritySwitch.isChecked() ? R.string.scale_priority_on : R.string.scale_priority_off);
+
+                Prefs.scalePriority(this, scalePrioritySwitch.isChecked());
+
                 break;
         }
     }
 
 
     /**
-     *
      * 对话框选择颜色，
+     *
      * @param dialog
      * @param selectedColor
      */
@@ -349,5 +529,65 @@ public class MainActivity extends AppCompatActivity implements
 
         imagePaddingLabel.setText(getString(R.string.image_spacing_x, horizontal, vertical));
 
+    }
+
+    /**
+     * @return 返回照片的宽高
+     */
+    @Size(2)
+    private int[] getNextBitmapSize() {
+
+        if (selectedPhotos == null || selectedPhotos.length == 0) {
+
+            selectedPhotos = adapter.getSelectedPhotos();
+
+            if (selectedPhotos == null || selectedPhotos.length == 0)
+
+                return new int[]{10, 10};
+        }
+        traverseIndex++;
+
+        if (traverseIndex > selectedPhotos.length - 1) return null;
+
+        Photo nextPhoto = selectedPhotos[traverseIndex];
+        BitmapFactory.Options options = new BitmapFactory.Options();
+
+        options.inJustDecodeBounds = true;
+        InputStream is = null;
+
+        try {
+            is = Util.openStream(this, nextPhoto.getUri());
+
+            BitmapFactory.decodeStream(is, null, options);
+
+        } catch (Exception e) {
+            Util.showError(this, e);
+            return new int[]{0, 0};
+        } finally {
+            Util.closeQuietely(is);
+        }
+
+        return new int[]{options.outWidth, options.outHeight};
+    }
+
+
+    @Override
+    public void onBackPressed() {
+        if (adapter.getSelectedCount() > 0) {
+            clearSelection();
+        } else super.onBackPressed();
+    }
+
+    @Override
+    public void onDragSelectionChanged(int count) {
+
+        Log.i(TAG, String.valueOf(count));
+        Toast.makeText(this, "count=" + count, Toast.LENGTH_SHORT).show();
+        affixButton.setText(getString(R.string.affix_x, count));
+        affixButton.setEnabled(count > 0);
+        toolbar
+                .getMenu()
+                .findItem(R.id.clear)
+                .setVisible(adapter != null && adapter.getSelectedCount() > 0);
     }
 }

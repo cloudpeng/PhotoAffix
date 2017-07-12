@@ -17,6 +17,8 @@ import com.example.photoaffix.data.Photo;
 import com.example.photoaffix.data.PhotoHolder;
 import com.example.photoaffix.ui.MainActivity;
 
+import java.util.ArrayList;
+
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
@@ -112,6 +114,18 @@ public class PhotoGridAdapter extends DragSelectRecyclerViewAdapter<PhotoGridAda
             holder.circle.setActivated(false);
             holder.image.setActivated(false);
         }
+    }
+
+    public Photo[] getSelectedPhotos() {
+        Integer[] indices = getSelectedIndices();
+        ArrayList<Photo> selected = new ArrayList<>();
+        for (Integer index : indices) {
+            if (index < 0) {
+                continue;
+            }
+            selected.add(photos[index - 1]);
+        }
+        return selected.toArray(new Photo[selected.size()]);
     }
 
     @Override

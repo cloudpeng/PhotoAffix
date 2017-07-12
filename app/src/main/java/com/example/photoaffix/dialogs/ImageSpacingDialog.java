@@ -69,11 +69,13 @@ public class ImageSpacingDialog extends DialogFragment {
                 .onNegative((materialDialog, dialogAction) -> MainActivity.dismissDialog(materialDialog))
                 .build();
 
+        //获取自定义对话框布局
         final View v = dialog.getCustomView();
         assert v != null;
+        //注解
         unbinder = ButterKnife.bind(this, v);
 
-
+        //SeekBar事件监听
         SeekBar.OnSeekBarChangeListener seekListener =
                 new SeekBar.OnSeekBarChangeListener() {
 
